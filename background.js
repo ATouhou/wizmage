@@ -1,11 +1,3 @@
-if (chrome.storage.sync.syncInit) {
-    localStorage.urlList = chrome.storage.sync.urlList;
-    localStorage.isPaused = chrome.storage.sync.isPaused;
-    localStorage.isNoPattern = chrome.storage.sync.isNoPattern;
-    localStorage.isNoEye = chrome.storage.sync.isNoEye;
-    localStorage.isBlackList = chrome.storage.sync.isBlackList;
-    chrome.storage.sync.syncInit = false;
-}
 var ul = localStorage.urlList, urlList = ul ? JSON.parse(ul) : [],
     paused = localStorage.isPaused == 1,
     isNoPattern = localStorage.isNoPattern == 1,
@@ -13,7 +5,8 @@ var ul = localStorage.urlList, urlList = ul ? JSON.parse(ul) : [],
     isBlackList = localStorage.isBlackList == 1,
     excludeForTabList = [],
     pauseForTabList = [],
-    domainRegex = /^\w+:\/\/([\w\.:-]+)/;
+    domainRegex = /^\w+:\/\/([\w\.:-]+)/,
+    maxSafe = +localStorage.maxSafe || 32;
 function getDomain(url) {
     var regex = domainRegex.exec(url);
     return regex ? regex[1].toLowerCase() : null;
@@ -29,7 +22,8 @@ chrome.runtime.onMessage.addListener(
                     isPaused: paused,
                     isNoPattern: isNoPattern,
                     isNoEye: isNoEye,
-                    isBlackList: isBlackList
+                    isBlackList: isBlackList,
+                    maxSafe: maxSafe
                 };
                 var tab = request.tab || sender.tab;
                 if (tab) {
@@ -64,6 +58,7 @@ chrome.runtime.onMessage.addListener(
                     saveUrlList();
                     chrome.runtime.sendMessage({ r: 'urlListModified' });
                 }
+                sendResponse(true);
                 break;
             case 'urlListRemove':
                 if (request.url) {
@@ -79,6 +74,11 @@ chrome.runtime.onMessage.addListener(
                 break;
             case 'getUrlList':
                 sendResponse(urlList);
+                break;
+            case 'setUrlList':
+                urlList = request.urlList;
+                saveUrlList();
+                sendResponse(true);
                 break;
             case 'excludeForTab':
                 var domain = getDomain(request.tab.url);
@@ -115,6 +115,12 @@ chrome.runtime.onMessage.addListener(
             case 'setBlackList':
                 isBlackList = request.toggle;
                 localStorage.isBlackList = isBlackList ? 1 : 0;
+                break;
+            case 'setMaxSafe':
+                var ms = +request.maxSafe;
+                if (!ms || ms < 1 || ms > 1000)
+                    ms = 32;
+                localStorage.maxSafe = maxSafe = ms;
                 break;
         }
     }
